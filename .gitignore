@@ -1,0 +1,37 @@
+# Visual Studio temporary files
+.vs/
+*.user
+*.VC.db
+*.VC.opendb
+*.suo
+
+# Build folders
+Debug/
+Release/
+x64/Debug/
+x64/Release/
+x86/Debug/
+x86/Release/
+
+# Generated build outputs
+x64/
+x86/
+bin/
+obj/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Windows files
+Thumbs.db
+Desktop.ini
