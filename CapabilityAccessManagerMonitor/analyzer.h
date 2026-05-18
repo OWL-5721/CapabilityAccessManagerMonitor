@@ -17,3 +17,4 @@ struct Event
 };
 
 std::vector<Event> readEvents(const std::string& dbPath);
+
