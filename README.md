@@ -154,4 +154,4 @@ sc start CapabilityMonitor
 
 ## Related Project
 
-**CapabilityMonitor Notifier** — a companion tray application that polls `alerts.db`, delivers Windows toast notifications for open alerts, and lets the user resolve them with a single click. See `README-CapabilityMonitorNotifier.md`.
+**CapabilityMonitor Notifier** — a companion tray application that polls `alerts.db`, delivers Windows toast notifications for open alerts, and lets the user resolve them with a single click. See `README.md - CapabilityMonitorNotifier`.
