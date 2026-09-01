@@ -1,6 +1,16 @@
 #pragma once
+
+#include "detection_result.h"
+
 #include <string>
 
-void initAlertDB();
+bool initAlertDB();
+void closeAlertDB();
+bool handleAlert(const DetectionResult& detection);
+bool handleAlert(
+    const std::string& processPath,
+    const std::string& process,
+    const std::string& type
+);
 void handleAlert(const std::string& process, const std::string& type);
-void markResolved(int alertId);
+bool markResolved(int alertId);

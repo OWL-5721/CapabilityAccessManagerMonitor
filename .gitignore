@@ -1,37 +1,153 @@
-# Visual Studio temporary files
+# =============================================================================
+# CapabilityAccessManagerMonitor - .gitignore
+# Target: Windows C++ service built with MSVC (Visual Studio) and CMake.
+# Keep this file aligned with the toolchain in CMakeLists.txt / .vcxproj.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Visual Studio / MSVC user & solution state
+# -----------------------------------------------------------------------------
 .vs/
 *.user
+*.suo
 *.VC.db
 *.VC.opendb
-*.suo
+*.VC.db-shm
+*.VC.db-wal
+*.sln.docstates
 
-# Build folders
-Debug/
-Release/
-x64/Debug/
-x64/Release/
-x86/Debug/
-x86/Release/
+# -----------------------------------------------------------------------------
+# MSBuild & MSVC build intermediates (extensions only - works for any layout)
+# -----------------------------------------------------------------------------
+*.obj
+*.pch
+*.pdb
+*.idb
+*.ipdb
+*.iobj
+*.ilk
+*.exp
+*.lib
+*.tlb
+*.tlog
+*.lastbuildstate
+*.unsuccessfulbuild
+*.aps
+*.rc
+*.res
+*.sdf
+*.opensdf
+*.cachefile
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+*.pfx
+*.publishsettings
+*.metagen
+*.cacheobj
+*.manifest
+*.dep
+*.vcxproj.user
+# NOTE: do NOT ignore .vcxproj / .vcxproj.filters / .sln - they are source.
 
-# Generated build outputs
+# Compiled binaries that may land outside the build tree
+*.dll
+*.exe
+
+# -----------------------------------------------------------------------------
+# Build output directories (MSVC + CMake)
+# -----------------------------------------------------------------------------
+# MSVC default out-of-source layout
 x64/
 x86/
+arm/
+arm64/
+
+# Conventional in-source layouts
+Debug/
+Release/
+RelWithDebInfo/
+MinSizeRel/
 bin/
 obj/
+out/
+build/
+_build/
+cmake-build-*/
 
-# CMake
+# CTest scratch
+Testing/
+
+# -----------------------------------------------------------------------------
+# CMake generated files
+# -----------------------------------------------------------------------------
 CMakeFiles/
 CMakeCache.txt
+CMakeUserPresets.json
 cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
 Makefile
+*.cmake
+!CMakeLists.txt
+!*.cmake.in
+compile_commands.json
+.cache/
 
-# Logs
+# -----------------------------------------------------------------------------
+# NuGet / vcpkg
+# -----------------------------------------------------------------------------
+packages/
+.vsconfig
+.vcpkg/
+vcpkg_installed/
+
+# -----------------------------------------------------------------------------
+# OS / shell artifacts
+# -----------------------------------------------------------------------------
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.directory
+
+# -----------------------------------------------------------------------------
+# Editor / IDE state
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.rej
+
+# -----------------------------------------------------------------------------
+# Local logs, temp, scratch
+# -----------------------------------------------------------------------------
 *.log
-
-# Temporary files
 *.tmp
 *.temp
 
-# Windows files
-Thumbs.db
-Desktop.ini
+# -----------------------------------------------------------------------------
+# Project-specific working directories (not part of the source tree)
+# -----------------------------------------------------------------------------
+# WorkBuddy AI per-project memory and skills - personal, not source.
+.workbuddy-ai/
+# Local scratch / artifact bundles produced by tooling or AI runs.
+outputs/
+
+# -----------------------------------------------------------------------------
+# Runtime / deployment artifacts
+# -----------------------------------------------------------------------------
+# Generated baselines during local runs (the seeded baseline.txt in the
+# source tree IS tracked; ignore only the generated/learning state files).
+baseline_learned/
+baseline.snapshot
+*.wal
+*.shm
+*.db-journal

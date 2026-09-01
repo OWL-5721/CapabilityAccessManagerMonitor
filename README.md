@@ -17,8 +17,9 @@ This database records every time a process requests a capability (camera, microp
 **Cycle:**
 1. Every hour, a 5-minute active monitoring window opens.
 2. Inside the window, the detector runs every 5 seconds.
-3. Each run snapshots the live DB → analyzes events → updates baselines → writes alerts.
-4. The service then sleeps until the next hour boundary.
+3. Each run checks the database and WAL metadata. Unchanged sources are skipped; changed sources are snapshotted and analyzed.
+4. Baselines are loaded once at service start and atomically saved after each monitoring window instead of every 5-second pass.
+5. The service then sleeps until the next hour boundary.
 
 ---
 
@@ -30,7 +31,10 @@ service_main.cpp
             └── RunDetector()          every 5 seconds
                     ├── backupDatabase()       snapshot.cpp  — SQLite online backup
                     ├── readEvents()           analyzer.h    — parse events from snapshot
-                    └── detectLoops()          detector.cpp  — classify & alert
+                    └── detectLoops()          detector.cpp  — metrics & orchestration
+                            ├── DetectionEngine          detector_pipeline.cpp
+                            │       └── six ordered detector modules
+                            ├── scoreFindings()          risk_scoring.cpp
                             ├── loadBaseline() / saveBaseline()   baseline.h
                             └── handleAlert()                     alert_manager.cpp
 ```
@@ -40,7 +44,9 @@ service_main.cpp
 | File | Responsibility |
 |---|---|
 | `service_main.cpp` | Windows Service entry point, control handler, hourly scheduling |
-| `detector.cpp` | Core detection logic — classifies process activity into loop types |
+| `detector.cpp` | Computes process timing metrics and orchestrates detection, baseline learning, logging, and alerts |
+| `detector_pipeline.h/cpp` | C++17 detector contract, six stateless detector modules, and deterministic `DetectionEngine` |
+| `risk_scoring.h/cpp` | Aggregates ordered findings into scoring version 1, severity, confidence, and legacy type |
 | `analyzer.h` | `Event` struct + `readEvents()` — reads raw events from DB snapshot |
 | `baseline.h/cpp` | Persists per-process average rates across runs for anomaly detection |
 | `alert_manager.cpp` | SQLite-backed alert store with deduplication and hourly reminders |
@@ -52,7 +58,7 @@ service_main.cpp
 
 ## Detection Logic
 
-All detection operates within an 8-hour sliding window per process. A minimum of 10–20 events is required before any classification is attempted.
+All detection operates within an 8-hour sliding window anchored to the current time. A minimum of 10 valid events is required before classification.
 
 | Alert Type | Condition |
 |---|---|
@@ -63,7 +69,20 @@ All detection operates within an 8-hour sliding window per process. A minimum of
 | `PERIODIC` | Inter-event gap coefficient of variation < 10% (highly regular timing) |
 | `HIGH ACTIVITY` | More than 50 events recorded in the window |
 
-Multiple types can be raised simultaneously for a single process (e.g. `BURST LOOP BASELINE ANOMALY`).
+Multiple findings can be raised simultaneously for a process. Six stateless detector modules run through `DetectionEngine` in the fixed order shown above. That order is a compatibility contract for the legacy type string, normalized finding rows, and evidence JSON. Findings are combined by scoring policy version 1 into a 0–100 risk score.
+
+### Risk scoring version 1
+
+| Finding | Score contribution |
+|---|---:|
+| `TIGHT LOOP` | 30 |
+| `BURST LOOP` | 30 |
+| `STEADY LOOP` | 25 |
+| `BASELINE ANOMALY` | 25 |
+| `PERIODIC` | 10 |
+| `HIGH ACTIVITY` | 10 |
+
+The score is capped at 100. Severity bands are: `INFORMATIONAL` 0–19, `LOW` 20–39, `MEDIUM` 40–59, `HIGH` 60–79, and `CRITICAL` 80–100. Confidence increases with event count and baseline maturity and is reduced when no historical baseline exists.
 
 ---
 
@@ -71,9 +90,10 @@ Multiple types can be raised simultaneously for a single process (e.g. `BURST LO
 
 `alert_manager.cpp` prevents alert spam:
 
-- If an alert for a process is already `OPEN`, only `last_seen` is updated.
+- Open-alert identity is `(full binary path, alert type)`, preventing collisions between same-named executables and different classifications.
+- Repeated alerts update `last_seen` and observation metrics. Equal or stronger results replace the stored score, confidence, explanation JSON, and normalized findings; weaker results do not lower or overwrite the strongest evidence.
 - A reminder log entry is written at most once per hour (`last_notified` gating).
-- New alerts are inserted with `status = 'OPEN'`.
+- Existing databases are migrated in place and retain all notifier-compatible columns.
 - Alerts can be marked `RESOLVED` via `markResolved(id)`.
 
 The alert database is shared with the Notifier process:
@@ -104,15 +124,30 @@ CREATE TABLE alerts (
     first_seen    INTEGER,   -- Unix timestamp
     last_seen     INTEGER,
     last_notified INTEGER,
-    status        TEXT DEFAULT 'OPEN'   -- 'OPEN' | 'RESOLVED'
+    status           TEXT DEFAULT 'OPEN',  -- 'OPEN' | 'RESOLVED'
+    process_path     TEXT NOT NULL DEFAULT '',
+    risk_score       INTEGER NOT NULL DEFAULT 0,
+    severity         TEXT NOT NULL DEFAULT 'INFORMATIONAL',
+    confidence       INTEGER NOT NULL DEFAULT 0,
+    scoring_version  INTEGER NOT NULL DEFAULT 0,
+    event_count      INTEGER NOT NULL DEFAULT 0,
+    peak_rate        INTEGER NOT NULL DEFAULT 0,
+    average_rate     REAL NOT NULL DEFAULT 0,
+    baseline_rate    REAL NOT NULL DEFAULT 0,
+    first_event_time INTEGER NOT NULL DEFAULT 0,
+    last_event_time  INTEGER NOT NULL DEFAULT 0,
+    reason_json      TEXT NOT NULL DEFAULT '{}'
 );
+
+-- Schema version 3 retains all legacy notifier columns and adds normalized
+-- alert_findings and alert_evidence tables with deterministic ordering.
 ```
 
 ---
 
 ## Configuration Constants
 
-All tuning constants are defined at the top of `detector.cpp`:
+Metric/window constants are defined in `detector.cpp`; classification thresholds and version 1 score contributions are owned by `detector_pipeline.cpp`:
 
 | Constant | Default | Meaning |
 |---|---|---|
@@ -124,7 +159,7 @@ All tuning constants are defined at the top of `detector.cpp`:
 | `BASELINE_MULT` | 2.0× | Multiplier over baseline to flag as anomaly |
 | `PERIODIC_COV` | 0.10 | Max coefficient of variation for periodic detection |
 | `MIN_EVENTS` | 10 | Minimum events required after windowing |
-| `MIN_EVENTS_FULL` | 20 | Minimum events required before windowing |
+| `MIN_EVENTS_FULL` | 10 | Minimum valid events required before windowing |
 
 ---
 
@@ -141,7 +176,17 @@ The project targets Windows and requires:
 
 - MSVC (Visual Studio 2019+ recommended)
 - SQLite3 headers and library
-- C++17 or later (`std::filesystem`, structured bindings)
+- C++17 (`std::filesystem`, structured bindings)
+
+CMake now builds a reusable core plus `CapabilityMonitorTests`. Configure it out of source with a discoverable SQLite3 package:
+
+```text
+cmake -S CapabilityAccessManagerMonitor -B build -DBUILD_TESTING=ON
+cmake --build build --config Debug
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+The Visual Studio project still requires a local SQLite/SQLCipher include and import-library setup; do not assume the checked-in runtime DLLs provide compile-time linkage.
 
 Install the service:
 

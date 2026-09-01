@@ -1,110 +1,55 @@
 #include "logger.h"
 
-#include <fstream>
-#include <filesystem>
-#include <mutex>
+#include "runtime_config.h"
+
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
+#include <mutex>
 #include <sstream>
 
 namespace
 {
-    constexpr const char* LOG_DIRECTORY =
-        "C:\\ProgramData\\CapabilityMonitor";
-
-    constexpr const char* LOG_FILE =
-        "C:\\ProgramData\\CapabilityMonitor\\log.txt";
-
     std::mutex g_LogMutex;
 }
 
-void Logger::Info(
-    const std::string& message
-)
+void Logger::Info(const std::string& message)
 {
-    Write(
-        "INFO",
-        message
-    );
+    Write("INFO", message);
 }
 
-void Logger::Error(
-    const std::string& message
-)
+void Logger::Error(const std::string& message)
 {
-    Write(
-        "ERROR",
-        message
-    );
+    Write("ERROR", message);
 }
 
-void Logger::Warning(
-    const std::string& message
-)
+void Logger::Warning(const std::string& message)
 {
-    Write(
-        "WARNING",
-        message
-    );
+    Write("WARNING", message);
 }
 
-void Logger::Write(
-    const std::string& level,
-    const std::string& message
-)
+void Logger::Write(const std::string& level, const std::string& message)
 {
-    std::lock_guard<std::mutex> lock(
-        g_LogMutex
-    );
+    std::lock_guard<std::mutex> lock(g_LogMutex);
 
     try
     {
-        std::filesystem::create_directories(
-            LOG_DIRECTORY
-        );
-
-        std::ofstream logFile(
-            LOG_FILE,
-            std::ios::app
-        );
-
-        if (!logFile.is_open())
+        const auto config = getRuntimeConfig();
+        std::filesystem::create_directories(config.dataDirectory);
+        std::ofstream logFile(config.logPath, std::ios::app);
+        if (!logFile)
         {
             return;
         }
 
-        auto now =
-            std::chrono::system_clock::now();
-
-        auto time =
-            std::chrono::system_clock::to_time_t(
-                now
-            );
-
+        const auto now = std::chrono::system_clock::now();
+        const auto time = std::chrono::system_clock::to_time_t(now);
         std::tm localTime{};
+        localtime_s(&localTime, &time);
 
-        localtime_s(
-            &localTime,
-            &time
-        );
-
-        std::ostringstream timestamp;
-
-        timestamp
-            << std::put_time(
-                &localTime,
-                "%Y-%m-%d %H:%M:%S"
-            );
-
-        logFile
-            << "["
-            << timestamp.str()
-            << "] "
-            << "["
-            << level
-            << "] "
-            << message
-            << "\n";
+        logFile << '[' << std::put_time(&localTime, "%Y-%m-%d %H:%M:%S")
+            << "] [" << level << "] " << message << '\n';
     }
     catch (...)
     {

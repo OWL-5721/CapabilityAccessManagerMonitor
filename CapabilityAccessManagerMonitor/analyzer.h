@@ -1,20 +1,31 @@
-﻿#pragma once
-#include <vector>
-#include <string>
+#pragma once
+
 #include <cstdint>
+#include <string>
+#include <vector>
 
 struct Event
 {
-    uint64_t start;
-    uint64_t stop;
-
-    int appName;
-    int serviceName;
-
+    uint64_t start = 0;
+    uint64_t stop = 0;
+    int appName = 0;
+    int serviceName = 0;
     std::string appNameStr;
     std::string serviceNameStr;
-    std::string binaryPath; 
+    std::string binaryPath;
 };
 
-std::vector<Event> readEvents(const std::string& dbPath);
+struct AnalyzerResult
+{
+    std::vector<Event> events;
+    bool success = false;
+    bool truncated = false;
+};
 
+AnalyzerResult readEvents(
+    const std::string& dbPath,
+    uint64_t minimumStartFiletime,
+    int eventLimit
+);
+
+std::vector<Event> readEvents(const std::string& dbPath);
